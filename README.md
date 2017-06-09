@@ -1,2 +1,1 @@
-# srcds
-srcds configuration Interface
+linuxgsm configuration Interface
