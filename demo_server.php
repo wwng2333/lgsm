@@ -179,7 +179,7 @@ function csgo_main($input) {
 			list($result, $errno) = csgo_stop();
 		break;
 		case 'status':
-			$result = is_numeric($csgo_running) ? true : false;
+			$result = is_numeric($GLOBALS['csgo']['running']) ? true : false;
 			$errno = 0;
 		break;
 		case 'update':
