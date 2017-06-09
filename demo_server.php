@@ -103,8 +103,7 @@ function get_full_html($table, $data) {
 
 function get_pid($name_need) {
 	$dir = scandir('/proc');
-	if($dir) {
-		foreach($dir as $key => $name) {
+	if($dir) foreach($dir as $key => $name) {
 			$status_file = sprintf("/proc/%s/status", $name);
 			if(is_readable($status_file)) {
 				$status = file($status_file);
@@ -117,28 +116,28 @@ function get_pid($name_need) {
 					return false;
 				}
 			}
-		}
 	}
 }
 
 function lgsm_settings($what) {
+	var_dump($GLOBALS['lgsm']);
 	$config = file($GLOBALS['lgsm']);
-	if(!isset($GLOBAL['settings'])) {
-		$GLOBAL['settings'] = [];
+	if(!isset($GLOBALS['settings'])) {
+		$GLOBALS['settings'] = [];
 		foreach($config as $line) {
-			if(strstr($line, '=') and !strstr($line, ' ')) {
+			if(strstr($line, '=')) {
 				list($key, $val) = explode('=', $line);
-				$GLOBAL['settings'][$key] = trim($val, '"');
+				$GLOBALS['settings'][$key] = trim($val, "\"\n");
+				var_dump($GLOBALS['settings'][$key]);
 			}
 		}
 	} else {
-		$need = $GLOBAL['settings'][$what];
-		return isset($need) ? $need : false;
+		return isset($GLOBALS['settings'][$what]) ? $GLOBALS['settings'][$what] : false;
 	}
 }
 
 /* function csgo_stop() {
-	if(!$GLOBALS['csgo']['running']) return false;
+	if(!$GLOBALS['csgo']['pid']) return false;
 	exec('pkill -9 srcds_linux', $result, $errno);
 	return array('result' => $result, 'errno' => $errno);
 } */
@@ -165,37 +164,43 @@ function csgo_update() {
 
 function csgo_main($input) {
 	$needs = array('gametype', 'gamemode', 'defaultmap', 'mapgroup', 'maxplayers', 'tickrate', 'port', 'sourcetvport', 'clientport', 'ip', 'gslt');
-	$GLOBALS['csgo']['running'] = get_pid('srcds_linux');
+	$GLOBALS['csgo']['pid'] = get_pid('srcds_linux');
 	foreach($needs as $need) if(!isset($GLOBALS['csgo'][$need])) $GLOBALS['csgo'][$need] = lgsm_settings($need);
 	unset($need);
 	switch($input) {
 		case 'restart':
-			list($result, $errno) = csgo_restart();
+			$done = csgo_restart();
 		break;
 		case 'start':
-			list($result, $errno) = csgo_start();
+			$done = csgo_start();
 		break;
 		case 'stop':
-			list($result, $errno) = csgo_stop();
+			$done = csgo_stop();
 		break;
 		case 'status':
-			$result = is_numeric($GLOBALS['csgo']['running']) ? true : false;
-			$errno = 0;
+			$running = is_numeric($GLOBALS['csgo']['pid']);
+			$cmd = sprintf('netstat -ltu | grep %s', $GLOBALS['csgo']['port']);
+			var_dump($GLOBALS['csgo'], $cmd);
+			exec($cmd, $listening, $errno);
+			$done = array('result' => implode('</br>', $listening), 'errno' => $errno);
 		break;
 		case 'update':
-			list($result, $errno) = csgo_update();
+			$done = csgo_update();
 		break;
 	}
+	$result = $done['result'];
+	$errno = $done['errno'];
 	$html[] = sprintf('操作:%s', $input);
 	$html[] = sprintf('结果:%s', $result);
 	$html[] = sprintf('错误码:%s', $errno);
+	$html[] = '<input type="button" name="Submit" value="返回上一页" onclick="javascript:history.back(-1);">';
 	return implode('</br>', $html);
 }
 
 function csgo_front() {
 	$html = '';
 	$acts = array('restart' => '重启', 'start' => '启动', 'stop' => '停止', 'status' => '状态', 'update' => '升级');
-	foreach($acts as $act => $tran) $html .= sprintf('<a href="?csgoact=%s" onclick="return confirm(\'确定要%s吗？\')"> %s</a> ', $act, $tran, $tran);
+	foreach($acts as $act => $tran) $html .= sprintf('<a href="?csgoact=%s" onclick="return confirm(\'确定要执行%s操作吗？\')"> %s</a> ', $act, $tran, $tran);
 	return $html;
 }
 
