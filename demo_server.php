@@ -68,7 +68,7 @@ function read_dir($dir, $sort = 'mtime', $order = SORT_DESC) {
 }
 
 function make_list($array) {
-	#var_dump($array);
+	##var_dump($array);
 	if(!$array) return false;
 	$str = '';
 	$GLOBALS['total_files'] = 0;
@@ -93,7 +93,34 @@ function make_list($array) {
 
 function get_full_html($table, $data) {
 	$GLOBALS['total_size'] = formatsize($GLOBALS['total_size']);
-	$header = "<!DOCTYPE html PUBLIC \"-//WAPFORUM//DTD XHTML Mobile 1.0//EN\" \"http://www.wapforum.org/DTD/xhtml-mobile10.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n<title>Index of /</title>\n<style type=\"text/css\" media=\"screen\">pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}</style>\n<script>if(window.name!=\"bencalie\"){location.reload();window.name=\"bencalie\"}else{window.name=\"\"}</script>\n</head>\n<body>\n<strong>Demo 下载</strong>\n";
+	$header = '<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Index of /</title>
+<style type="text/css" media="screen">
+pre{background:0 0}body{margin:2em}tb{width:600px;margin:0 auto}
+</style>
+<script language="JavaScript" type="text/javascript" src="http://cdn.bootcss.com/jquery/3.1.1/jquery.min.js"></script>
+<script>
+$(document).ready(function(){getJSONData();});
+function getJSONData() {
+	setTimeout("getJSONData()", 1000);
+	$.getJSON(\'?csgoact=ajax&callback=?\', displayData);
+}
+function displayData(a) {
+	$("#pid").html(a.pid);
+	$("#net").html(a.net)
+};
+if (window.name != "bencalie") {
+	location.reload();
+	window.name = "bencalie"
+} else {
+	window.name = ""
+}
+</script>
+</head>
+<body>
+<strong>Demo 下载</strong>';
 	$footer = csgo_front()."<address>%s</address>\n</body>\n</html>";
 	$template_a = $header.'<p>没有文件</p>'.$footer;
 	$template = $header.'<table><th><img src="data:image/gif;base64,R0lGODlhFAAWAKEAAP///8z//wAAAAAAACH+TlRoaXMgYXJ0IGlzIGluIHRoZSBwdWJsaWMgZG9tYWluLiBLZXZpbiBIdWdoZXMsIGtldmluaEBlaXQuY29tLCBTZXB0ZW1iZXIgMTk5NQAh+QQBAAABACwAAAAAFAAWAAACE4yPqcvtD6OctNqLs968+w+GSQEAOw==" alt="[ICO]"></th><th><a href="?sort=name">名称</a></th><th><a href="?sort=mtime">最后更改</a></th><th><a href="?sort=duration">持续时间</a></th><th><a href="?sort=size">大小</a></th></tr><tr><th colspan="6"><hr></th></tr>%s<tr><th colspan="6"><hr></th></tr></table>'.$footer;
@@ -103,12 +130,14 @@ function get_full_html($table, $data) {
 
 function get_pid($name_need) {
 	$dir = scandir('/proc');
-	if($dir) foreach($dir as $key => $name) {
+	if($dir) {
+		foreach($dir as $key => $name) {
 			$status_file = sprintf("/proc/%s/status", $name);
 			if(is_readable($status_file)) {
 				$status = file($status_file);
 				$status = explode("\t", trim($status[0]));
 				if($status[1] == $name_need) {
+					#var_dump($name);
 					return $name;
 				} elseif(isset($dir[$key + 1])) {
 					continue;
@@ -116,11 +145,12 @@ function get_pid($name_need) {
 					return false;
 				}
 			}
+		}
 	}
 }
 
 function lgsm_settings($what) {
-	var_dump($GLOBALS['lgsm']);
+	#var_dump($GLOBALS['lgsm']);
 	$config = file($GLOBALS['lgsm']);
 	if(!isset($GLOBALS['settings'])) {
 		$GLOBALS['settings'] = [];
@@ -128,7 +158,7 @@ function lgsm_settings($what) {
 			if(strstr($line, '=')) {
 				list($key, $val) = explode('=', $line);
 				$GLOBALS['settings'][$key] = trim($val, "\"\n");
-				var_dump($GLOBALS['settings'][$key]);
+				#var_dump($GLOBALS['settings'][$key]);
 			}
 		}
 	} else {
@@ -179,28 +209,42 @@ function csgo_main($input) {
 		break;
 		case 'status':
 			$running = is_numeric($GLOBALS['csgo']['pid']);
-			$cmd = sprintf('netstat -ltu | grep %s', $GLOBALS['csgo']['port']);
-			var_dump($GLOBALS['csgo'], $cmd);
-			exec($cmd, $listening, $errno);
-			$done = array('result' => implode('</br>', $listening), 'errno' => $errno);
+			exec(sprintf('netstat -ltu | grep %s', $GLOBALS['csgo']['port']), $listening, $errno);
+			$done = array('result' => $listening, 'errno' => $errno);
 		break;
 		case 'update':
 			$done = csgo_update();
 		break;
+		case 'ajax':
+			exec(sprintf('netstat -ltu | grep %s', $GLOBALS['csgo']['port']), $listening);
+			var_dump(get_pid('srcds_linux'));
+			$ajax['pid'] = get_pid('srcds_linux');
+			$ajax['net'] = end($listening);
+			return htmlspecialchars($_GET['callback']).'('.json_encode($ajax).')';
+		break;
 	}
-	$result = $done['result'];
+	$tmp = explode("\n", str_replace("\r", "\n", end($done['result'])));
+	$tmp = end($tmp);
+	$tmp = explode('] ', $tmp);
+	$tmp = end($tmp);
+	$result = array($tmp);
 	$errno = $done['errno'];
 	$html[] = sprintf('操作:%s', $input);
-	$html[] = sprintf('结果:%s', $result);
-	$html[] = sprintf('错误码:%s', $errno);
-	$html[] = '<input type="button" name="Submit" value="返回上一页" onclick="javascript:history.back(-1);">';
+	$html[] = sprintf('结果:%s', implode('</br>', $result));
+	$html[] = sprintf('状态:%s', $errno);
+	$html[] = '<input type="button" name="Submit" value="返回" onclick="javascript:history.back(-1);">';
 	return implode('</br>', $html);
+}
+
+function csgo_ajax() {
+	
 }
 
 function csgo_front() {
 	$html = '';
 	$acts = array('restart' => '重启', 'start' => '启动', 'stop' => '停止', 'status' => '状态', 'update' => '升级');
-	foreach($acts as $act => $tran) $html .= sprintf('<a href="?csgoact=%s" onclick="return confirm(\'确定要执行%s操作吗？\')"> %s</a> ', $act, $tran, $tran);
+	foreach($acts as $act => $tran) $html .= sprintf('<a href="?csgoact=%s" onclick="return confirm(\'确定要执行 %s 操作吗？\')"> %s</a> ', $act, $tran, $tran);
+	$html .= 'srcds pid : <span id="pid">收集数据中...</span> 端口监听状态 : <span id="net">收集数据中...</span>';
 	return $html;
 }
 
