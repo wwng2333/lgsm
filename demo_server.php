@@ -205,7 +205,7 @@ $http_worker->onMessage = function($connection, $data) {
 	$GLOBALS['time_start'] = microtime(true);
 	$GLOBALS['queries'] = 0;
 	if(isset($_GET['csgoact'])) {
-		$connection->send(csgo_init($_GET['csgoact']));
+		$connection->send(csgo_main($_GET['csgoact']));
 	} elseif(isset($_GET['download'])) {
 		$file_path = $GLOBALS['path'].$_GET['download'];
 		if(is_readable($file_path)) {
