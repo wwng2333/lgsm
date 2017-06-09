@@ -6,6 +6,8 @@ require_once __DIR__ . '/vendor/Autoloader.php';
 
 date_default_timezone_set('PRC');
 $GLOBALS['path'] = '/home/csgoserver/serverfiles/csgo/';
+$GLOBALS['srcds_cfg'] = $GLOBALS['path'].'cfg/csgo-server.cfg';
+$GLOBALS['lgsm'] = $GLOBALS['path'].'../../csgoserver';
 
 function formatsize($size, $key = 0) {
 	if($size < 0) {
@@ -99,24 +101,102 @@ function get_full_html($table, $data) {
 	return sprintf($template, $table, "{$GLOBALS['total_files']} files, total {$GLOBALS['total_size']}.</br>".get_ver($data));
 }
 
-function csgo_init($input) {
+function get_pid($name_need) {
+	$dir = scandir('/proc');
+	if($dir) {
+		foreach($dir as $key => $name) {
+			$status_file = sprintf("/proc/%s/status", $name);
+			if(is_readable($status_file)) {
+				$status = file($status_file);
+				$status = explode("\t", trim($status[0]));
+				if($status[1] == $name_need) {
+					return $name;
+				} elseif(isset($dir[$key + 1])) {
+					continue;
+				} else {
+					return false;
+				}
+			}
+		}
+	}
+}
+
+function lgsm_settings($what) {
+	$config = file($GLOBALS['lgsm']);
+	if(!isset($GLOBAL['settings'])) {
+		$GLOBAL['settings'] = [];
+		foreach($config as $line) {
+			if(strstr($line, '=') and !strstr($line, ' ')) {
+				list($key, $val) = explode('=', $line);
+				$GLOBAL['settings'][$key] = trim($val, '"');
+			}
+		}
+	} else {
+		$need = $GLOBAL['settings'][$what];
+		return isset($need) ? $need : false;
+	}
+}
+
+/* function csgo_stop() {
+	if(!$GLOBALS['csgo']['running']) return false;
+	exec('pkill -9 srcds_linux', $result, $errno);
+	return array('result' => $result, 'errno' => $errno);
+} */
+
+function csgo_stop() {
+	exec('su - csgoserver -c "./csgoserver stop"', $result, $errno);
+	return array('result' => $result, 'errno' => $errno);
+}
+
+function csgo_start() {
+	exec('su - csgoserver -c "./csgoserver start"', $result, $errno);
+	return array('result' => $result, 'errno' => $errno);
+}
+
+function csgo_restart() {
+	exec('su - csgoserver -c "./csgoserver restart"', $result, $errno);
+	return array('result' => $result, 'errno' => $errno);
+}
+
+function csgo_update() {
+	exec('su - csgoserver -c "./csgoserver update >/tmp/lgsmlog 2>/tmp/lgsmlog &"', $result, $errno);
+	return array('result' => $result, 'errno' => $errno);
+}
+
+function csgo_main($input) {
+	$needs = array('gametype', 'gamemode', 'defaultmap', 'mapgroup', 'maxplayers', 'tickrate', 'port', 'sourcetvport', 'clientport', 'ip', 'gslt');
+	$GLOBALS['csgo']['running'] = get_pid('srcds_linux');
+	foreach($needs as $need) if(!isset($GLOBALS['csgo'][$need])) $GLOBALS['csgo'][$need] = lgsm_settings($need);
+	unset($need);
 	switch($input) {
 		case 'restart':
-		
+			list($result, $errno) = csgo_restart();
 		break;
 		case 'start':
-		
+			list($result, $errno) = csgo_start();
 		break;
 		case 'stop':
-		
+			list($result, $errno) = csgo_stop();
 		break;
 		case 'status':
-		
+			$result = is_numeric($csgo_running) ? true : false;
+			$errno = 0;
 		break;
 		case 'update':
-		
+			list($result, $errno) = csgo_update();
 		break;
 	}
+	$html[] = sprintf('操作:%s', $input);
+	$html[] = sprintf('结果:%s', $result);
+	$html[] = sprintf('错误码:%s', $errno);
+	return implode('</br>', $html);
+}
+
+function csgo_front() {
+	$html = '';
+	$acts = array('restart' => '重启', 'start' => '启动', 'stop' => '停止', 'status' => '状态', 'update' => '升级');
+	foreach($acts as $act => $tran) $html .= sprintf('<a href="?csgoact=%s" onclick="return confirm(\'确定要%s吗？\')"> %s</a> ', $act, $tran, $tran);
+	return $html;
 }
 
 $http_worker = new Worker("http://0.0.0.0:12101");
@@ -125,7 +205,7 @@ $http_worker->onMessage = function($connection, $data) {
 	$GLOBALS['time_start'] = microtime(true);
 	$GLOBALS['queries'] = 0;
 	if(isset($_GET['csgoact'])) {
-		csgo_init($_GET['csgoact']);
+		$connection->send(csgo_init($_GET['csgoact']));
 	} elseif(isset($_GET['download'])) {
 		$file_path = $GLOBALS['path'].$_GET['download'];
 		if(is_readable($file_path)) {
