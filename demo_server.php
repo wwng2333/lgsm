@@ -207,19 +207,19 @@ function csgo_main($input) {
 		case 'stop':
 			$done = csgo_stop();
 		break;
-		case 'status':
+/* 		case 'status':
 			$running = is_numeric($GLOBALS['csgo']['pid']);
-			exec(sprintf('netstat -ltu | grep %s', $GLOBALS['csgo']['port']), $listening, $errno);
+			exec(sprintf('netstat -ltup | grep %s', $GLOBALS['csgo']['port']), $listening, $errno);
 			$done = array('result' => $listening, 'errno' => $errno);
-		break;
+		break; */
 		case 'update':
 			$done = csgo_update();
 		break;
 		case 'ajax':
-			exec(sprintf('netstat -ltu | grep %s', $GLOBALS['csgo']['port']), $listening);
-			var_dump(get_pid('srcds_linux'));
-			$ajax['pid'] = get_pid('srcds_linux');
-			$ajax['net'] = end($listening);
+			$port = $GLOBALS['csgo']['port'];
+			exec(sprintf('netstat -ltup | grep %s | grep srcds', $port), $listening);
+			$ajax['pid'] = get_pid('srcds_linux') ? 'running' : 'not running';
+			$ajax['net'] = empty(end($listening)) ? sprintf('not listening udp %s', $port) : sprintf('listening udp %s', $port);
 			return htmlspecialchars($_GET['callback']).'('.json_encode($ajax).')';
 		break;
 	}
@@ -236,15 +236,11 @@ function csgo_main($input) {
 	return implode('</br>', $html);
 }
 
-function csgo_ajax() {
-	
-}
-
 function csgo_front() {
 	$html = '';
-	$acts = array('restart' => '重启', 'start' => '启动', 'stop' => '停止', 'status' => '状态', 'update' => '升级');
+	$acts = array('start' => '启动', 'stop' => '停止', 'restart' => '重启', 'update' => '升级');
 	foreach($acts as $act => $tran) $html .= sprintf('<a href="?csgoact=%s" onclick="return confirm(\'确定要执行 %s 操作吗？\')"> %s</a> ', $act, $tran, $tran);
-	$html .= 'srcds pid : <span id="pid">收集数据中...</span> 端口监听状态 : <span id="net">收集数据中...</span>';
+	$html .= '</br>服务端状态 : <span id="pid">收集数据中...</span></br>端口监听状态 : <span id="net">收集数据中...</span>';
 	return $html;
 }
 
